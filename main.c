@@ -189,15 +189,13 @@ void UpdateEnemy(float dt) {
     }
 }
 
-// --- Drawing Functions ---
-
+// --- Drawing Functions (DrawWall and DrawWalls are only used once now) ---
 void DrawWall(int cellX, int cellY) {
     float x = cellX * cellWidth;
     float y = cellY * cellHeight;
     DrawRectangleV((Vector2){x + border_buff, y + border_buff},
                    (Vector2){cellWidth - border_buff * 2, cellHeight - border_buff * 2},
                    COLOR_DARK_NEON);
-    // Draw a simple glowing effect
     for (int i = 0; i < 3; i++) {
         DrawRectangleLinesEx(
             (Rectangle){x - i, y - i, cellWidth + 2*i, cellHeight + 2*i},
@@ -223,7 +221,7 @@ void DrawEnemy() {
 }
 
 
-// --- Main Entry Point ---
+// --- Main Entry Point (MODIFIED) ---
 int main(void) {
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Tron-Style Enemy Pathfinding");
     SetTargetFPS(60);
@@ -232,7 +230,7 @@ int main(void) {
     Vector2 startPos, endPos;
     if (!LoadMap("map.txt", &startPos, &endPos)) {
         CloseWindow();
-        return 1; // Exit if map loading fails
+        return 1;
     }
 
     if (FindPathBFS(startPos, endPos)) {
@@ -240,9 +238,27 @@ int main(void) {
         currentPathIndex = 0;
         printf("Path found! Length: %d steps.\n", pathLength);
     } else {
-        enemy.pos = (Vector2){-1, -1}; // Place enemy off-screen if no path found
-        printf("Pathfinding failed between the start and finish points.\n");
+        enemy.pos = (Vector2){-1, -1};
+        printf("Pathfinding failed.\n");
     }
+
+    // --- OPTIMIZATION: Create a Render Texture for the static background ---
+    RenderTexture2D backgroundTexture = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    // --- Draw the static elements to the texture ONCE ---
+    BeginTextureMode(backgroundTexture);
+        ClearBackground(COLOR_BLACK); // Start with a clean texture
+
+        // Draw grid lines onto the texture
+        for (int i = 0; i <= GRID_SIZE; i++) {
+            DrawLineEx((Vector2){i * cellWidth, 0}, (Vector2){i * cellWidth, SCREEN_HEIGHT}, 2, COLOR_NEON_CYAN);
+            DrawLineEx((Vector2){0, i * cellHeight}, (Vector2){SCREEN_WIDTH, i * cellHeight}, 2, COLOR_NEON_CYAN);
+        }
+
+        // Draw walls onto the texture
+        DrawWalls();
+    EndTextureMode();
+
 
     // --- Main Game Loop ---
     while (!WindowShouldClose()) {
@@ -251,20 +267,23 @@ int main(void) {
 
         // --- Draw Step ---
         BeginDrawing();
-        ClearBackground(COLOR_BLACK);
+        ClearBackground(BLACK); // Clear the main window
 
-        // Draw grid lines
-        for (int i = 0; i <= GRID_SIZE; i++) {
-            DrawLineEx((Vector2){i * cellWidth, 0}, (Vector2){i * cellWidth, SCREEN_HEIGHT}, 2, COLOR_NEON_CYAN);
-            DrawLineEx((Vector2){0, i * cellHeight}, (Vector2){SCREEN_WIDTH, i * cellHeight}, 2, COLOR_NEON_CYAN);
-        }
-
-        DrawWalls();
+        // 1. Draw the pre-rendered background texture in a single call
+        // We have to flip the texture vertically due to how OpenGL handles texture coordinates
+        DrawTextureRec(backgroundTexture.texture,
+                       (Rectangle){ 0, 0, (float)backgroundTexture.texture.width, (float)-backgroundTexture.texture.height },
+                       (Vector2){ 0, 0 },
+                       WHITE);
+        
+        // 2. Draw the dynamic objects on top
         DrawEnemy();
         
         EndDrawing();
     }
 
+    // --- Cleanup ---
+    UnloadRenderTexture(backgroundTexture); // Important to free memory
     CloseWindow();
     return 0;
 }

@@ -1,5 +1,5 @@
 #include "raylib.h"
-#include "raymath.h"
+#include "raymath.h" // Added for Vector2Lerp for cleaner code
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
@@ -27,7 +27,7 @@ typedef struct {
 } EnemyType;
 
 typedef struct {
-    Vector2 pos;
+    Vector2 pos; // Now a float Vector2 for smooth positioning
     int type;
     int pathIndex;
     float moveTimer;
@@ -46,10 +46,11 @@ typedef struct {
 bool walls[GRID_SIZE][GRID_SIZE] = {0};
 Vector2 path[GRID_SIZE * GRID_SIZE];
 int pathLength = 0;
+bool onPath[GRID_SIZE][GRID_SIZE] = {0}; // NEW: Quick lookup for path cells
 
 #define ENEMY_TYPE_COUNT 2
 EnemyType enemyTypes[ENEMY_TYPE_COUNT];
-EnemyWave activeWave; 
+EnemyWave activeWave;
 
 // --- Function Prototypes ---
 void InitializeEnemyTypes();
@@ -64,7 +65,7 @@ bool FindPathBFS(Vector2 start, Vector2 end);
 // --- Game Logic ---
 
 void InitializeEnemyTypes() {
-    enemyTypes[0].speed = 4.0f;
+    enemyTypes[0].speed = 4.0f; // Speed is now tiles per second
     enemyTypes[0].color = COLOR_NEON_RED;
     enemyTypes[1].speed = 8.0f;
     enemyTypes[1].color = COLOR_NEON_ORANGE;
@@ -93,63 +94,44 @@ void UpdateWave(EnemyWave *wave, float dt) {
         wave->spawnTimer = 0;
         Enemy *enemy = &wave->enemies[wave->enemiesSpawned];
         enemy->active = true;
-        enemy->pos = path[0];
+        enemy->pos = path[0]; // Start at the first node
         enemy->pathIndex = 0;
         enemy->moveTimer = 0.0f;
         wave->enemiesSpawned++;
     }
 }
 
+// MODIFIED: This function now handles smooth movement via interpolation
 void UpdateEnemies(EnemyWave *wave, float dt) {
     for (int i = 0; i < wave->enemyCount; i++) {
         Enemy *enemy = &wave->enemies[i];
         if (!enemy->active) continue;
 
-        // If the enemy is already at or past the last path node, deactivate it.
-        // This check is crucial to prevent reading beyond the path array.
         if (enemy->pathIndex >= pathLength - 1) {
             enemy->active = false;
             continue;
         }
 
-        // --- SMOOTH MOVEMENT LOGIC ---
-
-        // 1. Calculate how long it should take to move from one tile to the next.
         float moveInterval = 1.0f / enemyTypes[enemy->type].speed;
-
-        // 2. Add the frame time to the enemy's personal move timer.
         enemy->moveTimer += dt;
 
-        // 3. Get the start and target nodes for the current movement segment.
         Vector2 startNode = path[enemy->pathIndex];
         Vector2 targetNode = path[enemy->pathIndex + 1];
 
-        // 4. Check if the enemy has completed the current segment.
         if (enemy->moveTimer >= moveInterval) {
-            // It has finished. Snap its position to the target node to ensure accuracy.
             enemy->pos = targetNode;
-            
-            // Increment the path index to move to the next segment.
             enemy->pathIndex++;
-            
-            // Reset the timer, but keep the "overflow" time. This ensures that
-            // an enemy moving very fast doesn't lose momentum between tiles.
             enemy->moveTimer -= moveInterval;
 
-            // If the enemy has now reached the end, deactivate and skip to the next enemy.
             if (enemy->pathIndex >= pathLength - 1) {
                 enemy->active = false;
                 continue;
             }
             
-            // Update the start/target nodes for the new segment, in case we need them
-            // for the interpolation below (if moveTimer is still > 0).
             startNode = path[enemy->pathIndex];
             targetNode = path[enemy->pathIndex + 1];
         }
         
-        // 5. Interpolate the enemy's position for smooth drawing.
-        // Calculate the progress (0.0 to 1.0) along the current segment.
         float lerpAmount = enemy->moveTimer / moveInterval;
         enemy->pos = Vector2Lerp(startNode, targetNode, lerpAmount);
     }
@@ -174,10 +156,53 @@ int main(void) {
     RenderTexture2D backgroundTexture = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
     BeginTextureMode(backgroundTexture);
         ClearBackground(COLOR_BLACK);
-        for (int i = 0; i <= GRID_SIZE; i++) {
-            DrawLineEx((Vector2){i * cellWidth, 0}, (Vector2){i * cellWidth, SCREEN_HEIGHT}, 2, COLOR_NEON_CYAN);
-            DrawLineEx((Vector2){0, i * cellHeight}, (Vector2){SCREEN_WIDTH, i * cellHeight}, 2, COLOR_NEON_CYAN);
+
+        // --- MODIFIED GRID DRAWING LOGIC ---
+        // Draw horizontal lines segment by segment
+        for (int y = 0; y <= GRID_SIZE; y++) {
+            for (int x = 0; x < GRID_SIZE; x++) {
+                bool shouldDraw = true;
+                // Check if it's an internal horizontal line
+                if (y > 0 && y < GRID_SIZE) {
+                    // This line is between cell (x, y-1) and cell (x, y)
+                    // Don't draw it if both cells are on the path
+                    if (onPath[x][y-1] && onPath[x][y]) {
+                        shouldDraw = false;
+                    }
+                }
+                if (shouldDraw) {
+                    DrawLineEx(
+                        (Vector2){(float)x * cellWidth, (float)y * cellHeight},
+                        (Vector2){(float)(x+1) * cellWidth, (float)y * cellHeight},
+                        2, COLOR_NEON_CYAN
+                    );
+                }
+            }
         }
+
+        // Draw vertical lines segment by segment
+        for (int x = 0; x <= GRID_SIZE; x++) {
+            for (int y = 0; y < GRID_SIZE; y++) {
+                bool shouldDraw = true;
+                // Check if it's an internal vertical line
+                if (x > 0 && x < GRID_SIZE) {
+                    // This line is between cell (x-1, y) and cell (x, y)
+                    // Don't draw it if both cells are on the path
+                    if (onPath[x-1][y] && onPath[x][y]) {
+                        shouldDraw = false;
+                    }
+                }
+                if (shouldDraw) {
+                    DrawLineEx(
+                        (Vector2){(float)x * cellWidth, (float)y * cellHeight},
+                        (Vector2){(float)x * cellWidth, (float)(y+1) * cellHeight},
+                        2, COLOR_NEON_CYAN
+                    );
+                }
+            }
+        }
+        // --- END OF MODIFIED LOGIC ---
+
         for (int x = 0; x < GRID_SIZE; x++) {
             for (int y = 0; y < GRID_SIZE; y++) {
                 if (walls[x][y]) DrawWall(x, y);
@@ -188,7 +213,6 @@ int main(void) {
     while (!WindowShouldClose()) {
         float dt = GetFrameTime();
 
-        // CORRECTED FUNCTION CALLS with the new variable name
         UpdateWave(&activeWave, dt);
         UpdateEnemies(&activeWave, dt);
 
@@ -199,7 +223,6 @@ int main(void) {
                        (Rectangle){ 0, 0, (float)backgroundTexture.texture.width, (float)-backgroundTexture.texture.height },
                        (Vector2){ 0, 0 }, WHITE);
         
-        // CORRECTED FUNCTION CALL with the new variable name
         DrawEnemies(&activeWave);
         
         EndDrawing();
@@ -225,10 +248,12 @@ void DrawWall(int cellX, int cellY) {
     }
 }
 
+// UNCHANGED: This function correctly translates the float position to screen coordinates
 void DrawEnemies(const EnemyWave *wave) {
     for (int i = 0; i < wave->enemyCount; i++) {
         const Enemy *enemy = &wave->enemies[i];
         if (enemy->active) {
+            // enemy->pos.x and .y are now grid coordinates like 1.5, 2.7, etc.
             float screenX = enemy->pos.x * cellWidth + cellWidth / 2;
             float screenY = enemy->pos.y * cellHeight + cellHeight / 2;
             DrawCircleV((Vector2){screenX, screenY}, cellWidth / 3.5f, enemyTypes[enemy->type].color);
@@ -273,6 +298,7 @@ bool LoadMap(const char *filename, Vector2 *startPos, Vector2 *endPos) {
     return true;
 }
 
+// MODIFIED: This function now populates the onPath lookup table
 bool FindPathBFS(Vector2 start, Vector2 end) {
     Vector2 queue[GRID_SIZE * GRID_SIZE];
     int head = 0, tail = 0;
@@ -304,12 +330,18 @@ bool FindPathBFS(Vector2 start, Vector2 end) {
         }
     }
     if (!pathFound) return false;
+
+    // Clear and populate the onPath grid for quick lookups later
+    memset(onPath, 0, sizeof(onPath));
     pathLength = 0;
     Vector2 current = end;
     while (current.x != -1) {
         path[pathLength++] = current;
+        onPath[(int)current.x][(int)current.y] = true; // Mark cell as on path
         current = parent[(int)current.x][(int)current.y];
     }
+
+    // Reverse the path to go from start to end
     for (int i = 0; i < pathLength / 2; i++) {
         Vector2 temp = path[i];
         path[i] = path[pathLength - 1 - i];

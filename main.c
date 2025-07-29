@@ -1,4 +1,5 @@
 #include "raylib.h"
+#include "raymath.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
@@ -48,7 +49,7 @@ int pathLength = 0;
 
 #define ENEMY_TYPE_COUNT 2
 EnemyType enemyTypes[ENEMY_TYPE_COUNT];
-EnemyWave activeWave; // RENAMED VARIABLE to avoid display bug
+EnemyWave activeWave; 
 
 // --- Function Prototypes ---
 void InitializeEnemyTypes();
@@ -103,17 +104,54 @@ void UpdateEnemies(EnemyWave *wave, float dt) {
     for (int i = 0; i < wave->enemyCount; i++) {
         Enemy *enemy = &wave->enemies[i];
         if (!enemy->active) continue;
+
+        // If the enemy is already at or past the last path node, deactivate it.
+        // This check is crucial to prevent reading beyond the path array.
         if (enemy->pathIndex >= pathLength - 1) {
             enemy->active = false;
             continue;
         }
+
+        // --- SMOOTH MOVEMENT LOGIC ---
+
+        // 1. Calculate how long it should take to move from one tile to the next.
         float moveInterval = 1.0f / enemyTypes[enemy->type].speed;
+
+        // 2. Add the frame time to the enemy's personal move timer.
         enemy->moveTimer += dt;
+
+        // 3. Get the start and target nodes for the current movement segment.
+        Vector2 startNode = path[enemy->pathIndex];
+        Vector2 targetNode = path[enemy->pathIndex + 1];
+
+        // 4. Check if the enemy has completed the current segment.
         if (enemy->moveTimer >= moveInterval) {
-            enemy->moveTimer -= moveInterval;
+            // It has finished. Snap its position to the target node to ensure accuracy.
+            enemy->pos = targetNode;
+            
+            // Increment the path index to move to the next segment.
             enemy->pathIndex++;
-            enemy->pos = path[enemy->pathIndex];
+            
+            // Reset the timer, but keep the "overflow" time. This ensures that
+            // an enemy moving very fast doesn't lose momentum between tiles.
+            enemy->moveTimer -= moveInterval;
+
+            // If the enemy has now reached the end, deactivate and skip to the next enemy.
+            if (enemy->pathIndex >= pathLength - 1) {
+                enemy->active = false;
+                continue;
+            }
+            
+            // Update the start/target nodes for the new segment, in case we need them
+            // for the interpolation below (if moveTimer is still > 0).
+            startNode = path[enemy->pathIndex];
+            targetNode = path[enemy->pathIndex + 1];
         }
+        
+        // 5. Interpolate the enemy's position for smooth drawing.
+        // Calculate the progress (0.0 to 1.0) along the current segment.
+        float lerpAmount = enemy->moveTimer / moveInterval;
+        enemy->pos = Vector2Lerp(startNode, targetNode, lerpAmount);
     }
 }
 

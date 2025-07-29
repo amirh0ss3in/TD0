@@ -19,8 +19,16 @@
 #define COLOR_DARK_NEON   (Color){0, 80, 80, 255}
 #define COLOR_NEON_RED    (Color){255, 0, 100, 255}
 #define COLOR_NEON_ORANGE (Color){255, 165, 0, 255}
+#define COLOR_NEON_WHITE  (Color){255, 255, 255, 200} // NEW: For selection highlight
 
 // --- Data Structures ---
+
+// NEW: Structure to hold tower data
+typedef struct {
+    Vector2 pos;
+    bool active;
+} Tower;
+
 typedef struct {
     float speed;
     Color color;
@@ -46,7 +54,8 @@ typedef struct {
 bool walls[GRID_SIZE][GRID_SIZE] = {0};
 Vector2 path[GRID_SIZE * GRID_SIZE];
 int pathLength = 0;
-bool onPath[GRID_SIZE][GRID_SIZE] = {0}; // NEW: Quick lookup for path cells
+bool onPath[GRID_SIZE][GRID_SIZE] = {0}; // Quick lookup for path cells
+Tower towers[GRID_SIZE][GRID_SIZE] = {0}; // NEW: Grid to hold all our towers, zero-initialized to inactive
 
 #define ENEMY_TYPE_COUNT 2
 EnemyType enemyTypes[ENEMY_TYPE_COUNT];
@@ -58,6 +67,7 @@ void CreateWave(int waveNumber);
 void UpdateWave(EnemyWave *wave, float dt);
 void UpdateEnemies(EnemyWave *wave, float dt);
 void DrawEnemies(const EnemyWave *wave);
+void DrawTowers(); // NEW: Function to draw towers
 void DrawWall(int cellX, int cellY);
 bool LoadMap(const char *filename, Vector2 *startPos, Vector2 *endPos);
 bool FindPathBFS(Vector2 start, Vector2 end);
@@ -101,7 +111,6 @@ void UpdateWave(EnemyWave *wave, float dt) {
     }
 }
 
-// MODIFIED: This function now handles smooth movement via interpolation
 void UpdateEnemies(EnemyWave *wave, float dt) {
     for (int i = 0; i < wave->enemyCount; i++) {
         Enemy *enemy = &wave->enemies[i];
@@ -139,7 +148,7 @@ void UpdateEnemies(EnemyWave *wave, float dt) {
 
 // --- Main Entry Point ---
 int main(void) {
-    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Tron-Style Enemy Waves");
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Tron-Style Tower Defense"); // MODIFIED: Window title
     SetTargetFPS(60);
 
     InitializeEnemyTypes();
@@ -156,16 +165,12 @@ int main(void) {
     RenderTexture2D backgroundTexture = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
     BeginTextureMode(backgroundTexture);
         ClearBackground(COLOR_BLACK);
-
-        // --- MODIFIED GRID DRAWING LOGIC ---
+        
         // Draw horizontal lines segment by segment
         for (int y = 0; y <= GRID_SIZE; y++) {
             for (int x = 0; x < GRID_SIZE; x++) {
                 bool shouldDraw = true;
-                // Check if it's an internal horizontal line
                 if (y > 0 && y < GRID_SIZE) {
-                    // This line is between cell (x, y-1) and cell (x, y)
-                    // Don't draw it if both cells are on the path
                     if (onPath[x][y-1] && onPath[x][y]) {
                         shouldDraw = false;
                     }
@@ -184,10 +189,7 @@ int main(void) {
         for (int x = 0; x <= GRID_SIZE; x++) {
             for (int y = 0; y < GRID_SIZE; y++) {
                 bool shouldDraw = true;
-                // Check if it's an internal vertical line
                 if (x > 0 && x < GRID_SIZE) {
-                    // This line is between cell (x-1, y) and cell (x, y)
-                    // Don't draw it if both cells are on the path
                     if (onPath[x-1][y] && onPath[x][y]) {
                         shouldDraw = false;
                     }
@@ -201,7 +203,6 @@ int main(void) {
                 }
             }
         }
-        // --- END OF MODIFIED LOGIC ---
 
         for (int x = 0; x < GRID_SIZE; x++) {
             for (int y = 0; y < GRID_SIZE; y++) {
@@ -213,9 +214,25 @@ int main(void) {
     while (!WindowShouldClose()) {
         float dt = GetFrameTime();
 
+        // --- NEW: Input and Logic for Tower Placement ---
+        Vector2 mousePos = GetMousePosition();
+        int gridX = (int)(mousePos.x / cellWidth);
+        int gridY = (int)(mousePos.y / cellHeight);
+        bool isMouseOnGrid = (gridX >= 0 && gridX < GRID_SIZE && gridY >= 0 && gridY < GRID_SIZE);
+
+        if (isMouseOnGrid && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            // Check if it's a valid placement spot (a wall '1') and no tower is there yet.
+            if (walls[gridX][gridY] && !towers[gridX][gridY].active) {
+                towers[gridX][gridY].active = true;
+                towers[gridX][gridY].pos = (Vector2){(float)gridX, (float)gridY};
+            }
+        }
+
+        // --- Updates ---
         UpdateWave(&activeWave, dt);
         UpdateEnemies(&activeWave, dt);
 
+        // --- Drawing ---
         BeginDrawing();
         ClearBackground(BLACK);
 
@@ -224,6 +241,21 @@ int main(void) {
                        (Vector2){ 0, 0 }, WHITE);
         
         DrawEnemies(&activeWave);
+        DrawTowers(); // NEW: Draw the placed towers
+
+        // --- NEW: Draw UI / Selection Highlight ---
+        if (isMouseOnGrid) {
+            // Only highlight buildable spots (walls)
+            if (walls[gridX][gridY]) {
+                // Red if occupied, White if free
+                Color highlightColor = towers[gridX][gridY].active ? COLOR_NEON_RED : COLOR_NEON_WHITE; 
+                DrawRectangleLinesEx(
+                    (Rectangle){(float)gridX * cellWidth, (float)gridY * cellHeight, (float)cellWidth, (float)cellHeight},
+                    3,
+                    Fade(highlightColor, 0.7f)
+                );
+            }
+        }
         
         EndDrawing();
     }
@@ -234,6 +266,27 @@ int main(void) {
 }
 
 // --- Function Implementations ---
+
+// NEW: Draws all the active towers on the grid.
+void DrawTowers() {
+    for (int x = 0; x < GRID_SIZE; x++) {
+        for (int y = 0; y < GRID_SIZE; y++) {
+            if (towers[x][y].active) {
+                float screenX = x * cellWidth;
+                float screenY = y * cellHeight;
+
+                // Define the three vertices of the triangle to fit nicely inside the cell
+                Vector2 v1 = { screenX + cellWidth / 2.0f, screenY + border_buff };
+                Vector2 v2 = { screenX + border_buff, screenY + cellHeight - border_buff };
+                Vector2 v3 = { screenX + cellWidth - border_buff, screenY + cellHeight - border_buff };
+
+                // Draw the tower (triangle)
+                DrawTriangle(v1, v2, v3, COLOR_NEON_ORANGE);
+                DrawTriangleLines(v1, v2, v3, COLOR_NEON_CYAN); // Add a border for style
+            }
+        }
+    }
+}
 
 void DrawWall(int cellX, int cellY) {
     float x = cellX * cellWidth;
@@ -248,12 +301,10 @@ void DrawWall(int cellX, int cellY) {
     }
 }
 
-// UNCHANGED: This function correctly translates the float position to screen coordinates
 void DrawEnemies(const EnemyWave *wave) {
     for (int i = 0; i < wave->enemyCount; i++) {
         const Enemy *enemy = &wave->enemies[i];
         if (enemy->active) {
-            // enemy->pos.x and .y are now grid coordinates like 1.5, 2.7, etc.
             float screenX = enemy->pos.x * cellWidth + cellWidth / 2;
             float screenY = enemy->pos.y * cellHeight + cellHeight / 2;
             DrawCircleV((Vector2){screenX, screenY}, cellWidth / 3.5f, enemyTypes[enemy->type].color);
@@ -298,7 +349,6 @@ bool LoadMap(const char *filename, Vector2 *startPos, Vector2 *endPos) {
     return true;
 }
 
-// MODIFIED: This function now populates the onPath lookup table
 bool FindPathBFS(Vector2 start, Vector2 end) {
     Vector2 queue[GRID_SIZE * GRID_SIZE];
     int head = 0, tail = 0;
@@ -331,17 +381,15 @@ bool FindPathBFS(Vector2 start, Vector2 end) {
     }
     if (!pathFound) return false;
 
-    // Clear and populate the onPath grid for quick lookups later
     memset(onPath, 0, sizeof(onPath));
     pathLength = 0;
     Vector2 current = end;
     while (current.x != -1) {
         path[pathLength++] = current;
-        onPath[(int)current.x][(int)current.y] = true; // Mark cell as on path
+        onPath[(int)current.x][(int)current.y] = true;
         current = parent[(int)current.x][(int)current.y];
     }
 
-    // Reverse the path to go from start to end
     for (int i = 0; i < pathLength / 2; i++) {
         Vector2 temp = path[i];
         path[i] = path[pathLength - 1 - i];

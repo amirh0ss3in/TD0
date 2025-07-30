@@ -112,15 +112,15 @@ int currentWaveNumber;
 
 
 // --- Function Prototypes ---
-void InitializeGame(); // NEW
-void RestartGame(); // NEW
+void InitializeGame(); 
+void RestartGame(); 
 void InitializeEnemyTypes();
 void CreateWave(int waveNumber);
 void UpdateWave(EnemyWave *wave, float dt);
 void UpdateEnemies(EnemyWave *wave, float dt);
 void UpdateTowers(float dt);
-void CheckWaveCompletion(); // NEW
-void DrawGameUI(); // NEW
+void CheckWaveCompletion(); 
+void DrawGameUI(); 
 void DrawEnemies(const EnemyWave *wave);
 void DrawTowers();
 void DrawWall(int cellX, int cellY);
@@ -157,13 +157,13 @@ void InitializeEnemyTypes() {
     enemyTypes[0].speed = 4.0f;
     enemyTypes[0].color = COLOR_NEON_RED;
     enemyTypes[0].maxHealth = 100.0f;
-    enemyTypes[0].money = 5; // NEW
+    enemyTypes[0].money = 5; 
 
     // Type 1: Fast enemy
     enemyTypes[1].speed = 8.0f;
     enemyTypes[1].color = COLOR_NEON_ORANGE;
     enemyTypes[1].maxHealth = 60.0f;
-    enemyTypes[1].money = 8; // NEW
+    enemyTypes[1].money = 8; 
 }
 
 // Now creates waves that get progressively harder
@@ -326,7 +326,7 @@ void CheckWaveCompletion() {
 
 // --- Main Entry Point ---
 int main(void) {
-    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Tron-Style Tower Defense - Full Game");
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Tower Defense: Zero");
     SetTargetFPS(60);
 
     Vector2 startPos, endPos;

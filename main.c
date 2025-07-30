@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
-#include <float.h> // NEW: For FLT_MAX
+#include <float.h> // For FLT_MAX
 
 // --- Game Constants ---
 #define SCREEN_WIDTH 800
@@ -15,7 +15,7 @@
 #define SPAWN_INTERVAL 0.4f
 
 // --- Tower Constants ---
-// NEW: Default stats for newly placed towers
+// Default stats for newly placed towers
 #define TOWER_RANGE (2.5f * cellWidth) // Range in pixels
 #define TOWER_DAMAGE 25.0f
 #define TOWER_FIRE_RATE 2.0f // Shots per second
@@ -27,11 +27,11 @@
 #define COLOR_NEON_RED    (Color){255, 0, 100, 255}
 #define COLOR_NEON_ORANGE (Color){255, 165, 0, 255}
 #define COLOR_NEON_WHITE  (Color){255, 255, 255, 200}
-#define COLOR_HEALTH_GREEN (Color){0, 255, 0, 220} // NEW: For health bars
+#define COLOR_HEALTH_GREEN (Color){0, 255, 0, 220} // For health bars
 
 // --- Data Structures ---
 
-// MODIFIED: Tower struct with stats
+// Tower struct with stats
 typedef struct {
     Vector2 pos; // Grid position
     bool active;
@@ -42,14 +42,14 @@ typedef struct {
     int targetIndex;        // Index of the targeted enemy in the wave array (-1 for no target)
 } Tower;
 
-// MODIFIED: EnemyType struct with health
+// EnemyType struct with health
 typedef struct {
     float speed;
     Color color;
     float maxHealth;
 } EnemyType;
 
-// MODIFIED: Enemy struct with health
+// Enemy struct with health
 typedef struct {
     Vector2 pos;
     int type;
@@ -67,7 +67,7 @@ typedef struct {
     int enemiesSpawned;
 } EnemyWave;
 
-// NEW: Simple struct for laser visuals
+// Simple struct for laser visuals
 #define MAX_LASERS 100
 typedef struct {
     Vector2 startPos;
@@ -88,7 +88,7 @@ Tower towers[GRID_SIZE][GRID_SIZE] = {0};
 EnemyType enemyTypes[ENEMY_TYPE_COUNT];
 EnemyWave activeWave;
 
-// NEW: Array to manage active laser visuals
+// Array to manage active laser visuals
 Laser lasers[MAX_LASERS];
 int laserCount = 0;
 
@@ -97,11 +97,11 @@ void InitializeEnemyTypes();
 void CreateWave(int waveNumber);
 void UpdateWave(EnemyWave *wave, float dt);
 void UpdateEnemies(EnemyWave *wave, float dt);
-void UpdateTowers(float dt); // NEW
+void UpdateTowers(float dt); 
 void DrawEnemies(const EnemyWave *wave);
 void DrawTowers();
 void DrawWall(int cellX, int cellY);
-void UpdateAndDrawLasers(float dt); // NEW
+void UpdateAndDrawLasers(float dt); 
 bool LoadMap(const char *filename, Vector2 *startPos, Vector2 *endPos);
 bool FindPathBFS(Vector2 start, Vector2 end);
 
@@ -111,12 +111,12 @@ void InitializeEnemyTypes() {
     // Type 0: Standard enemy
     enemyTypes[0].speed = 4.0f;
     enemyTypes[0].color = COLOR_NEON_RED;
-    enemyTypes[0].maxHealth = 100.0f; // NEW
+    enemyTypes[0].maxHealth = 100.0f; 
 
     // Type 1: Fast enemy
     enemyTypes[1].speed = 8.0f;
     enemyTypes[1].color = COLOR_NEON_ORANGE;
-    enemyTypes[1].maxHealth = 60.0f; // NEW
+    enemyTypes[1].maxHealth = 60.0f; 
 }
 
 void CreateWave(int waveNumber) {
@@ -135,7 +135,7 @@ void CreateWave(int waveNumber) {
     }
 }
 
-// NEW: Function to spawn a laser visual effect
+// Function to spawn a laser visual effect
 void FireLaser(Vector2 startPos, Vector2 endPos, Color color) {
     if (laserCount < MAX_LASERS) {
         lasers[laserCount].startPos = startPos;
@@ -146,7 +146,7 @@ void FireLaser(Vector2 startPos, Vector2 endPos, Color color) {
     }
 }
 
-// NEW: Central logic for tower targeting and firing
+// Central logic for tower targeting and firing
 void UpdateTowers(float dt) {
     for (int x = 0; x < GRID_SIZE; x++) {
         for (int y = 0; y < GRID_SIZE; y++) {
@@ -229,7 +229,7 @@ void UpdateWave(EnemyWave *wave, float dt) {
         enemy->pos = path[0];
         enemy->pathIndex = 0;
         enemy->moveTimer = 0.0f;
-        enemy->health = enemyTypes[enemy->type].maxHealth; // MODIFIED: Initialize health
+        enemy->health = enemyTypes[enemy->type].maxHealth; // Initialize health
         wave->enemiesSpawned++;
     }
 }
@@ -284,7 +284,7 @@ int main(void) {
 
     CreateWave(1);
     RenderTexture2D backgroundTexture = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
-    // ... [Background drawing code is unchanged, so it's snipped for brevity]
+
     BeginTextureMode(backgroundTexture);
         ClearBackground(COLOR_BLACK);
         for (int y = 0; y <= GRID_SIZE; y++) {
@@ -307,7 +307,6 @@ int main(void) {
             }
         }
     EndTextureMode();
-    // ... [End of snipped background drawing code]
 
     while (!WindowShouldClose()) {
         float dt = GetFrameTime();
@@ -320,7 +319,7 @@ int main(void) {
 
         if (isMouseOnGrid && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             if (walls[gridX][gridY] && !towers[gridX][gridY].active) {
-                // MODIFIED: Initialize all tower stats on placement
+                // Initialize all tower stats on placement
                 Tower *newTower = &towers[gridX][gridY];
                 newTower->active = true;
                 newTower->pos = (Vector2){(float)gridX, (float)gridY};
@@ -335,7 +334,7 @@ int main(void) {
         // --- Updates ---
         UpdateWave(&activeWave, dt);
         UpdateEnemies(&activeWave, dt);
-        UpdateTowers(dt); // NEW: Update all towers
+        UpdateTowers(dt); // Update all towers
 
         // --- Drawing ---
         BeginDrawing();
@@ -347,7 +346,7 @@ int main(void) {
         
         DrawEnemies(&activeWave);
         DrawTowers();
-        UpdateAndDrawLasers(dt); // NEW: Draw laser effects
+        UpdateAndDrawLasers(dt); // Draw laser effects
 
         // --- Draw UI / Selection Highlight ---
         if (isMouseOnGrid) {
@@ -355,7 +354,7 @@ int main(void) {
                 Color highlightColor = towers[gridX][gridY].active ? COLOR_NEON_RED : COLOR_NEON_WHITE; 
                 DrawRectangleLinesEx( (Rectangle){(float)gridX * cellWidth, (float)gridY * cellHeight, (float)cellWidth, (float)cellHeight}, 3, Fade(highlightColor, 0.7f) );
                 
-                // NEW: If hovering over an existing tower, draw its range
+                // If hovering over an existing tower, draw its range
                 if (towers[gridX][gridY].active) {
                     float screenX = gridX * cellWidth + cellWidth / 2.0f;
                     float screenY = gridY * cellHeight + cellHeight / 2.0f;
@@ -375,7 +374,7 @@ int main(void) {
 
 // --- Function Implementations ---
 
-// NEW: Updates laser lifetimes and draws them
+// Updates laser lifetimes and draws them
 void UpdateAndDrawLasers(float dt) {
     for (int i = 0; i < laserCount; i++) {
         lasers[i].lifeTimer -= dt;
@@ -417,7 +416,7 @@ void DrawWall(int cellX, int cellY) {
     }
 }
 
-// MODIFIED: DrawEnemies now also draws health bars
+// DrawEnemies and draws health bars
 void DrawEnemies(const EnemyWave *wave) {
     for (int i = 0; i < wave->enemyCount; i++) {
         const Enemy *enemy = &wave->enemies[i];
@@ -426,7 +425,7 @@ void DrawEnemies(const EnemyWave *wave) {
             float screenY = enemy->pos.y * cellHeight + cellHeight / 2;
             DrawCircleV((Vector2){screenX, screenY}, cellWidth / 3.5f, enemyTypes[enemy->type].color);
 
-            // NEW: Draw health bar
+            // Draw health bar
             float healthPercentage = enemy->health / enemyTypes[enemy->type].maxHealth;
             float barWidth = cellWidth * 0.8f;
             float barHeight = 8.0f;
@@ -442,7 +441,6 @@ void DrawEnemies(const EnemyWave *wave) {
     }
 }
 
-// ... [LoadMap and FindPathBFS are unchanged, snipped for brevity] ...
 bool LoadMap(const char *filename, Vector2 *startPos, Vector2 *endPos) {
     FILE *file = fopen(filename, "r");
     if (!file) {
